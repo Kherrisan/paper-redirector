@@ -2,6 +2,8 @@ import Koa from 'koa';
 import Router from 'koa-router';
 import schedule from 'node-schedule';
 import Log4js from 'log4js';
+import axios from 'axios';
+import { load } from 'cheerio';
 
 const SCIHUB_MIRRORS = [
     'https://sci-hub.ru'
@@ -85,7 +87,23 @@ const arxiv = async (title) => {
 
 }
 
-const researchGate = async (title) => {}
+const researchGate = async (title) => {
+    let resp = await axios.get(`https://www.researchgate.net/search/publication?q=${encodeURIComponent(title)}`);
+    const $ = load(resp.data);
+    const candidates = $('div[itemtype="http://schema.org/ScholarlyArticle"]')
+        .filter((div) => $(div).find('a').first().text().trim() === title);
+    if (candidates.length === 0) {
+        return null;
+    }
+    const div = candidates[0];
+    if (div.text().indexOf('DOI') > -1) {
+        return {
+            div.text().match(/DOI: (.*)/)[1],
+        }
+    }
+    const href = $(candidates[0]).find('a').first().attr('href');
+    resp = await axios.get(`https://www.researchgate.net/${href}`);
+}
 
 const googleScholar = (title) => `https://scholar.google.com/scholar?q=${encodeURIComponent(title)}`
 
